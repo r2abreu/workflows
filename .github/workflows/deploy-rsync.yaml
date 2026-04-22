@@ -1,0 +1,68 @@
+name: Deploy (rsync)                                                                                                                      
+                  
+on:
+  workflow_call:
+    inputs:
+      source-path:
+        type: string
+        default: './wp-content/'
+      remote-path:
+        type: string
+        required: true
+      rsync-flags:
+        type: string
+        default: '-ai'
+      excludes-from:
+        type: string
+        default: './wp-content/.gitignore'
+      ssh-port:
+        type: string
+        default: '22'
+    secrets:                                                                                                                              
+      SSH_HOST:        { required: true }
+      SSH_USER:        { required: true }
+      SSH_PRIVATE_KEY: { required: true }                                                                                                 
+      SSH_KNOWN_HOSTS: { required: true }
+                                                                                                                                          
+jobs:           
+  deploy:
+    runs-on: ubuntu-latest                                                                                                                
+    timeout-minutes: 15
+    permissions:                                                                                                                          
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+                                                                                                                                          
+      - name: Configure SSH
+        env:                                                                                                                              
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}                                                                                 
+        run: |                                                                                                                            
+          mkdir -p ~/.ssh                                                                                                                 
+          chmod 700 ~/.ssh                                                                                                                
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519                                                                                                     
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts                                                                           
+          chmod 644 ~/.ssh/known_hosts                                                                                                    
+                                                                                                                                          
+      - name: Deploy via rsync
+        env:
+          SSH_USER:      ${{ secrets.SSH_USER }}
+          SSH_HOST:      ${{ secrets.SSH_HOST }}
+          SSH_PORT:      ${{ inputs.ssh-port }}
+          SRC:           ${{ inputs.source-path }}
+          DEST:          ${{ inputs.remote-path }}
+          RSYNC_FLAGS:   ${{ inputs.rsync-flags }}
+          EXCLUDES_FROM: ${{ inputs.excludes-from }}
+        run: |
+          EXCLUDE_ARG=""
+          if [ -n "$EXCLUDES_FROM" ]; then
+            if [ ! -f "$EXCLUDES_FROM" ]; then
+              echo "excludes-from file not found: $EXCLUDES_FROM" >&2
+              exit 1
+            fi
+            EXCLUDE_ARG="--exclude-from=$EXCLUDES_FROM"
+          fi
+          rsync $RSYNC_FLAGS $EXCLUDE_ARG -e "ssh -p $SSH_PORT" "$SRC" "$SSH_USER@$SSH_HOST:$DEST"

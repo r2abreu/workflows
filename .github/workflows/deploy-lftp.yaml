@@ -1,0 +1,46 @@
+name: Deploy (lftp)
+
+on:
+  workflow_call:
+    inputs:                                                                                                                               
+      source-path:
+        type: string                                                                                                                      
+        default: './'
+      ssl:
+        type: string                                                                                                                      
+        default: 'no'
+    secrets:                                                                                                                              
+      FTP_HOST:        { required: true }
+      FTP_USER:        { required: true }
+      FTP_PASSWORD:    { required: true }                                                                                                 
+      FTP_REMOTE_PATH: { required: true }
+                                                                                                                                          
+jobs:           
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15                                                                                                                   
+    permissions:
+      contents: read                                                                                                                      
+                
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+                                                                                                                                          
+      - name: Install lftp
+        run: sudo apt-get update && sudo apt-get install -y lftp                                                                          
+                                                                                                                                          
+      - name: Deploy via FTP
+        env:                                                                                                                              
+          FTP_HOST:        ${{ secrets.FTP_HOST }}
+          FTP_USER:        ${{ secrets.FTP_USER }}                                                                                        
+          FTP_PASSWORD:    ${{ secrets.FTP_PASSWORD }}
+          FTP_REMOTE_PATH: ${{ secrets.FTP_REMOTE_PATH }}                                                                                 
+          SRC:             ${{ inputs.source-path }}
+          SSL:             ${{ inputs.ssl }}                                                                                              
+        run: |  
+          lftp -e "                                                                                                                       
+            set ftp:ssl-allow $SSL;
+            open -u $FTP_USER,$FTP_PASSWORD $FTP_HOST;                                                                                    
+            mirror --reverse --verbose $SRC $FTP_REMOTE_PATH;                                                                             
+            quit                                                                                                                          
+          "        

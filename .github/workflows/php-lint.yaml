@@ -1,0 +1,48 @@
+name: PHP Lint                                                                                                                            
+                  
+on:                                                                                                                                       
+  workflow_call:
+    inputs:                                                                                                                               
+      php-version:
+        type: string
+        default: '8.2'
+      working-directory:
+        type: string
+        default: '.'                                                                                                                      
+  
+jobs:                                                                                                                                     
+  lint:         
+    name: PHP lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:                                                                                                                          
+      contents: read
+    defaults:                                                                                                                             
+      run:      
+        working-directory: ${{ inputs.working-directory }}
+                                                                                                                                          
+    steps:
+      - name: Checkout                                                                                                                    
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+                                                                                                                                          
+      - name: Set up PHP
+        uses: shivammathur/setup-php@accd6127cb78bee3e8082180cb391013d204ef9f  # v2                                                       
+        with:                                                                                                                             
+          php-version: ${{ inputs.php-version }}
+          coverage: none                                                                                                                  
+                
+      - name: Cache Composer dependencies                                                                                                 
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
+        with:                                                                                                                             
+          path: ~/.composer/cache
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}                                                             
+          restore-keys: ${{ runner.os }}-composer-                                                                                        
+  
+      - name: Install Composer dependencies                                                                                               
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+                                                                                                                                          
+      - name: Run PHP CS Fixer
+        run: vendor/bin/php-cs-fixer check --diff                                                                                         
+                                                                                                                                          
+      - name: Run PHP CodeSniffer
+        run: vendor/bin/phpcs
